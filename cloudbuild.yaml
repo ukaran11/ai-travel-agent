@@ -1,0 +1,91 @@
+# GCP Cloud Build configuration
+# Triggered on push to main branch
+
+substitutions:
+  _REGION: us-central1
+  _BACKEND_SERVICE: travel-agent-backend
+  _FRONTEND_SERVICE: travel-agent-frontend
+  _REPO: travel-agent
+
+steps:
+  # ── Backend ────────────────────────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-backend
+    args:
+      - build
+      - -t
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_BACKEND_SERVICE}:$SHORT_SHA"
+      - -t
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_BACKEND_SERVICE}:latest"
+      - ./backend
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-backend
+    waitFor: [build-backend]
+    args:
+      - push
+      - "--all-tags"
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_BACKEND_SERVICE}"
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-backend
+    waitFor: [push-backend]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_BACKEND_SERVICE}
+      - --image=gcr.io/$PROJECT_ID/${_REPO}/${_BACKEND_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars=ENVIRONMENT=production,LOG_LEVEL=WARNING
+      - --update-secrets=GEMINI_API_KEY=gemini-api-key:latest,GOOGLE_PLACES_API_KEY=google-places-key:latest,GOOGLE_GEOCODING_API_KEY=google-geocoding-key:latest
+      - --min-instances=0
+      - --max-instances=10
+      - --memory=512Mi
+      - --cpu=1
+
+  # ── Frontend ───────────────────────────────────────────────────────────
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-frontend
+    waitFor: [deploy-backend]
+    args:
+      - build
+      - -t
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_FRONTEND_SERVICE}:$SHORT_SHA"
+      - -t
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_FRONTEND_SERVICE}:latest"
+      - ./frontend
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
+    waitFor: [build-frontend]
+    args:
+      - push
+      - "--all-tags"
+      - "gcr.io/$PROJECT_ID/${_REPO}/${_FRONTEND_SERVICE}"
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-frontend
+    waitFor: [push-frontend]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_FRONTEND_SERVICE}
+      - --image=gcr.io/$PROJECT_ID/${_REPO}/${_FRONTEND_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --min-instances=0
+      - --max-instances=5
+      - --memory=256Mi
+
+images:
+  - "gcr.io/$PROJECT_ID/${_REPO}/${_BACKEND_SERVICE}:$SHORT_SHA"
+  - "gcr.io/$PROJECT_ID/${_REPO}/${_FRONTEND_SERVICE}:$SHORT_SHA"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

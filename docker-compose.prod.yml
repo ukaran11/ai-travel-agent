@@ -1,0 +1,39 @@
+version: "3.9"
+
+# Production compose — no volume mounts, multi-worker uvicorn
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: travel-agent-backend:latest
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=WARNING
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/v1/health').raise_for_status()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: travel-agent-frontend:latest
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  default:
+    name: travel-agent-prod-network
