@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 import httpx
+import config
 
 from agent.state import Coords, PlaceResult
 from mcp.tools.filter_tool import filter_places
@@ -19,6 +20,7 @@ from mcp.tools.places_tool import get_place_details, search_places
 @pytest.mark.asyncio
 async def test_geocode_valid_location(mocker, geocode_response):
     """geocode_location returns Coords for a valid address."""
+    mocker.patch.object(config.settings, "use_mocks", False)
     mock_get = mocker.AsyncMock(
         return_value=mocker.MagicMock(
             status_code=200,
@@ -27,8 +29,8 @@ async def test_geocode_valid_location(mocker, geocode_response):
         )
     )
     mocker.patch("httpx.AsyncClient.get", mock_get)
-    mocker.patch("config.settings.google_geocoding_api_key", "fake_key")
-    mocker.patch("config.settings.google_places_api_key", "fake_key")
+    mocker.patch.object(config.settings, "google_geocoding_api_key", "fake_key")
+    mocker.patch.object(config.settings, "google_places_api_key", "fake_key")
 
     coords = await geocode_location("Bandra, Mumbai", api_key="fake_key")
 
@@ -41,6 +43,8 @@ async def test_geocode_valid_location(mocker, geocode_response):
 @pytest.mark.asyncio
 async def test_geocode_ambiguous_location(mocker):
     """geocode_location raises ValueError on ZERO_RESULTS."""
+    mocker.patch.object(config.settings, "use_mocks", False)
+    mocker.patch.object(config.settings, "google_geocoding_api_key", "fake_key")
     mock_response = mocker.MagicMock(
         status_code=200,
         json=mocker.MagicMock(return_value={"status": "ZERO_RESULTS", "results": []}),
@@ -57,6 +61,8 @@ async def test_geocode_ambiguous_location(mocker):
 @pytest.mark.asyncio
 async def test_places_search_returns_results(mocker, places_api_response):
     """search_places returns a list of PlaceResult objects on success."""
+    mocker.patch.object(config.settings, "use_mocks", False)
+    mocker.patch.object(config.settings, "google_places_api_key", "fake_key")
     mock_post = mocker.AsyncMock(
         return_value=mocker.MagicMock(
             status_code=200,
@@ -82,6 +88,8 @@ async def test_places_search_returns_results(mocker, places_api_response):
 @pytest.mark.asyncio
 async def test_places_search_empty_results(mocker):
     """search_places returns an empty list when the API returns no places."""
+    mocker.patch.object(config.settings, "use_mocks", False)
+    mocker.patch.object(config.settings, "google_places_api_key", "fake_key")
     mock_post = mocker.AsyncMock(
         return_value=mocker.MagicMock(
             status_code=200,
@@ -104,6 +112,8 @@ async def test_places_search_empty_results(mocker):
 @pytest.mark.asyncio
 async def test_tool_api_error_handling(mocker):
     """search_places raises HTTPStatusError after retries on 5xx responses."""
+    mocker.patch.object(config.settings, "use_mocks", False)
+    mocker.patch.object(config.settings, "google_places_api_key", "fake_key")
     mock_response = mocker.MagicMock(status_code=500)
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "Server Error", request=mocker.MagicMock(), response=mock_response
@@ -151,6 +161,8 @@ async def test_tool_retry_on_rate_limit(mocker, places_api_response):
 @pytest.mark.asyncio
 async def test_get_place_details_returns_info(mocker):
     """get_place_details returns phone, website, and hours."""
+    mocker.patch.object(config.settings, "use_mocks", False)
+    mocker.patch.object(config.settings, "google_places_api_key", "fake_key")
     details_payload = {
         "id": "ChIJtest1234",
         "displayName": {"text": "The Rooftop Lounge"},
